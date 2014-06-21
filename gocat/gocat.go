@@ -1,105 +1,104 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"net"
+	"os"
 	"strings"
 )
 
-type proxyHost struct {
+type host struct {
 	Proto   string
 	Address string
+	Port    int
 }
 
-func NewProxy(localAddr, remoteAddr string) error {
+func NewProxy(fromUrl, toUrl string) error {
 	var (
-		local  proxyHost
-		remote proxyHost
+		from host
+		to   host
 	)
-	local.Proto, local.Address = splitURI(localAddr)
-	remote.Proto, remote.Address = splitURI(remoteAddr)
-	fmt.Println(local, remote)
 
-	listener, err := net.Listen(local.Proto, local.Address)
+	from.Proto, from.Address = parseURL(fromUrl)
+	to.Proto, to.Address = parseURL(toUrl)
+
+	waiting, complete := make(chan net.Conn), make(chan net.Conn)
+
+	server, err := net.Listen(from.Proto, from.Address)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(listener)
-
-	pending, complete := make(chan net.Conn), make(chan net.Conn)
-	go closeConn(complete)
-
 	for {
-		conn, err := listener.Accept()
+		conn, err := server.Accept()
 		if err != nil {
 			return err
 		}
 		go func() {
-			go handleConn(pending, complete, remote)
-			pending <- conn
+			go handleConn(waiting, complete, to)
+			waiting <- conn
 		}()
 	}
 
 	return nil
 }
 
-func closeConn(in <-chan net.Conn) {
+func closeConn(in chan net.Conn) {
 	for conn := range in {
 		conn.Close()
 	}
 }
 
-func handleConn(in <-chan net.Conn, out chan<- net.Conn, remote proxyHost) {
-	for conn := range in {
+func handleConn(waiting chan net.Conn, complete chan net.Conn, remote host) {
+	for conn := range waiting {
 		proxyConn(remote, conn)
-		out <- conn
+		complete <- conn
 	}
 }
 
-func proxyConn(host proxyHost, conn net.Conn) {
-	rConn, err := net.Dial(host.Proto, host.Address)
-	if err != nil {
-		panic(err)
-	}
-	defer rConn.Close()
+func proxyConn(toHost host, from net.Conn) {
+	defer from.Close()
 
-	buf := &bytes.Buffer{}
+	to, err := net.Dial(toHost.Proto, toHost.Address)
+	if err != nil {
+		fmt.Errorf("%v", err)
+		return
+	}
+	defer to.Close()
+
+	complete := make(chan bool)
+
+	go copyContent(from, to, complete)
+	go copyContent(to, from, complete)
+	<-complete
+}
+
+func copyContent(from, to net.Conn, complete chan bool) {
+	var (
+		err   error  = nil
+		bytes []byte = make([]byte, 256)
+		read  int    = 0
+	)
+
 	for {
-		data := make([]byte, 256)
-		n, err := conn.Read(data)
+		read, err = from.Read(bytes)
 		if err != nil {
-			if err != io.EOF {
-				panic(err)
-			}
+			complete <- true
+			break
 		}
-		buf.Write(data[:n])
-		if (data[len(data[:n])-2] == '\r' && data[len(data[:n])-1] == '\n') || data[0] == 0 {
+		_, err = to.Write(bytes[:read])
+		if err != nil {
+			complete <- true
 			break
 		}
 	}
-
-	if _, err := rConn.Write(buf.Bytes()); err != nil {
-		panic(err)
-	}
-
-	data := make([]byte, 1024)
-	n, err := rConn.Read(data)
-	if err != nil {
-		if err != io.EOF {
-			panic(err)
-		}
-	}
-	fmt.Println(n)
 }
 
-func splitURI(uri string) (string, string) {
+func parseURL(uri string) (string, string) {
 	arr := strings.Split(uri, "://")
 
 	if len(arr) == 1 {
-		return "unix", arr[0]
+		return "unix", arr[0] //, 0
 	}
 
 	proto := arr[0]
@@ -111,10 +110,10 @@ func splitURI(uri string) (string, string) {
 }
 
 func main() {
-	local := "tcp://localhost:3000"
-	remote := "tcp://google.com:80"
+	from := os.Args[1]
+	to := os.Args[2]
 
-	err := NewProxy(local, remote)
+	err := NewProxy(from, to)
 	if err != nil {
 		fmt.Println(err)
 	}
