@@ -5,6 +5,7 @@ import (
 	"./utils"
 	"flag"
 	"fmt"
+	"github.com/cpuguy83/docker-grand-ambassador/gocat"
 	"os"
 )
 
@@ -41,5 +42,7 @@ func main() {
 }
 
 func proxy(ip, port, proto string) {
-
+	local := fmt.Sprintf("%v://0.0.0.0:%v", proto, port)
+	remote := fmt.Sprintf("%v://%v:%v", proto, ip, port)
+	gocat.NewProxy(local, remote)
 }

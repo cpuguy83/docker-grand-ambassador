@@ -1,7 +1,8 @@
-package main
+package gocat
 
 import (
 	"fmt"
+	"github.com/cpuguy83/docker-grand-ambassador/utils"
 	"net"
 	"os"
 	"strings"
@@ -20,7 +21,7 @@ func NewProxy(fromUrl, toUrl string) error {
 	)
 
 	from.Proto, from.Address = parseURL(fromUrl)
-	to.Proto, to.Address = parseURL(toUrl)
+	to.Proto, to.Address = utils.ParseURL(toUrl)
 
 	waiting, complete := make(chan net.Conn), make(chan net.Conn)
 
@@ -94,22 +95,9 @@ func copyContent(from, to net.Conn, complete chan bool) {
 	}
 }
 
-func parseURL(url string) (string, string) {
-	arr := strings.Split(url, "://")
-
-	if len(arr) == 1 {
-		return "unix", arr[0] //, 0
-	}
-
-	proto := arr[0]
-	if proto == "http" {
-		proto = "tcp"
-	}
-
-	return proto, arr[1]
-}
-
 func main() {
+	ints, _ := net.Interfaces()
+	fmt.Printf("%s", ints)
 	from := os.Args[1]
 	to := os.Args[2]
 
