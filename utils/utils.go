@@ -4,7 +4,7 @@ import (
 	"strings"
 )
 
-func parseURL(url string) (string, string) {
+func ParseURL(url string) (string, string) {
 	arr := strings.Split(url, "://")
 
 	if len(arr) == 1 {
