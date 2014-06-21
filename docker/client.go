@@ -53,7 +53,7 @@ func NewClient(path string) (Docker, error) {
 }
 
 func (d *dockerClient) newConn() (*httputil.ClientConn, error) {
-	proto, path := utils.SplitURI(d.path)
+	proto, path := utils.ParseURL(d.path)
 	conn, err := net.Dial(proto, path)
 
 	if err != nil {
