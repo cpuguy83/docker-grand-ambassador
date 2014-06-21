@@ -1,9 +1,9 @@
 package docker
 
 import (
-	"../utils"
 	"encoding/json"
 	"fmt"
+	"github.com/cpuguy83/docker-grand-ambassador/utils"
 	"io"
 	"net"
 	"net/http"

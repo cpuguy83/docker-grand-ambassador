@@ -5,7 +5,6 @@ import (
 	"github.com/cpuguy83/docker-grand-ambassador/utils"
 	"net"
 	"os"
-	"strings"
 )
 
 type host struct {
@@ -20,7 +19,7 @@ func NewProxy(fromUrl, toUrl string) error {
 		to   host
 	)
 
-	from.Proto, from.Address = parseURL(fromUrl)
+	from.Proto, from.Address = utils.ParseURL(fromUrl)
 	to.Proto, to.Address = utils.ParseURL(toUrl)
 
 	waiting, complete := make(chan net.Conn), make(chan net.Conn)

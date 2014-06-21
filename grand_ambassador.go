@@ -1,11 +1,11 @@
 package main
 
 import (
-	"./docker"
-	"./utils"
 	"flag"
 	"fmt"
+	"github.com/cpuguy83/docker-grand-ambassador/docker"
 	"github.com/cpuguy83/docker-grand-ambassador/gocat"
+	"github.com/cpuguy83/docker-grand-ambassador/utils"
 	"os"
 )
 
