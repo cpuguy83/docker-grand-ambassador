@@ -94,8 +94,8 @@ func copyContent(from, to net.Conn, complete chan bool) {
 	}
 }
 
-func parseURL(uri string) (string, string) {
-	arr := strings.Split(uri, "://")
+func parseURL(url string) (string, string) {
+	arr := strings.Split(url, "://")
 
 	if len(arr) == 1 {
 		return "unix", arr[0] //, 0
