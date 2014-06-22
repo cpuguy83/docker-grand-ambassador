@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/cpuguy83/docker-grand-ambassador/utils"
 	"net"
-	"os"
 )
 
 type host struct {
@@ -13,7 +12,7 @@ type host struct {
 	Port    int
 }
 
-func NewProxy(fromUrl, toUrl string) error {
+func NewProxy(fromUrl, toUrl string, quit chan bool) error {
 	var (
 		from host
 		to   host
@@ -28,18 +27,21 @@ func NewProxy(fromUrl, toUrl string) error {
 	if err != nil {
 		return err
 	}
-
 	for {
-		conn, err := server.Accept()
-		if err != nil {
-			return err
-		}
-		go func() {
+		select {
+		case <-quit:
+			return nil
+		default:
+			conn, err := server.Accept()
+			if err != nil {
+				return err
+			}
 			go handleConn(waiting, complete, to)
-			waiting <- conn
-		}()
+			go func() {
+				waiting <- conn
+			}()
+		}
 	}
-
 	return nil
 }
 
@@ -71,6 +73,7 @@ func proxyConn(toHost host, from net.Conn) {
 	go copyContent(from, to, complete)
 	go copyContent(to, from, complete)
 	<-complete
+	<-complete
 }
 
 func copyContent(from, to net.Conn, complete chan bool) {
@@ -91,17 +94,5 @@ func copyContent(from, to net.Conn, complete chan bool) {
 			complete <- true
 			break
 		}
-	}
-}
-
-func main() {
-	ints, _ := net.Interfaces()
-	fmt.Printf("%s", ints)
-	from := os.Args[1]
-	to := os.Args[2]
-
-	err := NewProxy(from, to)
-	if err != nil {
-		fmt.Println(err)
 	}
 }
