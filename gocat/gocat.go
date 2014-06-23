@@ -3,8 +3,9 @@ package gocat
 import (
 	"fmt"
 	"github.com/cpuguy83/docker-grand-ambassador/utils"
-	"log"
+	//	"log"
 	"net"
+	//"sync"
 )
 
 type host struct {
@@ -13,7 +14,7 @@ type host struct {
 	Port    int
 }
 
-func NewProxy(fromUrl, toUrl string, quit chan bool) error {
+func NewProxy(fromUrl, toUrl string) (net.Listener, error) {
 	var (
 		from host
 		to   host
@@ -26,25 +27,22 @@ func NewProxy(fromUrl, toUrl string, quit chan bool) error {
 
 	server, err := net.Listen(from.Proto, from.Address)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	for {
-		select {
-		case <-quit:
-			log.Printf("Stop proxying from: %v, to: %v", fromUrl, toUrl)
-			return nil
-		default:
+	go func() error {
+		for {
 			conn, err := server.Accept()
 			if err != nil {
 				return err
 			}
 			go handleConn(waiting, complete, to)
-			go func(conn net.Conn) {
+			go func() {
 				waiting <- conn
-			}(conn)
+			}()
 		}
-	}
-	return nil
+	}()
+
+	return server, nil
 }
 
 func closeConn(in chan net.Conn) {
