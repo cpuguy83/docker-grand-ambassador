@@ -22,44 +22,47 @@ func main() {
 	flag.Parse()
 	dockerClient, err := docker.NewClient(*socket)
 	if err != nil {
-		fmt.Println("Could not connect to Docker: %s", err)
+		log.Printf("Could not connect to Docker: %s", err)
 		os.Exit(1)
 	}
 	container, err := dockerClient.FetchContainer(*containerName)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("%v", err)
 		os.Exit(2)
 	}
 	quit := make(chan bool)
 	go proxyContainer(container, quit)
 
 	events := dockerClient.GetEvents()
-	go handleEvents(events, quit)
+	go handleEvents(container, events, quit)
 
 	wait := make(chan bool)
 	<-wait
 }
 
-func handleEvents(eventChan chan *docker.Event, quit chan bool) error {
-	log.Printf("Handling Events")
+func handleEvents(container *docker.Container, eventChan chan *docker.Event, quit chan bool) error {
+	log.Printf("Handling Events for: %v", container.Id)
 	for event := range eventChan {
-		switch event.Status {
-		case "die", "stop", "kill":
-			quit <- true
-			log.Printf("Handling event %v", event)
-		case "start", "restart":
-			log.Printf("Handling event %v", event)
-			quit <- true
-			containerID := event.ContainerID
-			container, err := dockerClient.FetchContainer(containerID)
-			if err != nil {
-				return err
+		if container.Id == event.ContainerID {
+			log.Printf("Received event: %v", event)
+			switch event.Status {
+			case "die", "stop", "kill":
+				quit <- true
+				log.Printf("Handling event %v", event)
+			case "start", "restart":
+				log.Printf("Handling event %v", event)
+				quit <- true
+				container, err := dockerClient.FetchContainer(event.ContainerID)
+				if err != nil {
+					return err
+				}
+				go proxyContainer(container, quit)
+			default:
+				log.Printf("Not handling event: %v", event)
 			}
-			go proxyContainer(container, quit)
-		default:
-			log.Printf("Not handling event: %v", event)
 		}
 	}
+	log.Printf("Stopped handling events")
 	return nil
 }
 
@@ -71,7 +74,7 @@ func proxyContainer(container *docker.Container, quit chan bool) {
 			port, proto := utils.SplitPort(key)
 			out := fmt.Sprintf("Proxying %s:%s/%s", ip, port, proto)
 			go proxy(ip, port, proto, quit)
-			fmt.Println(out)
+			log.Printf(out)
 		}
 	}
 }
