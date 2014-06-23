@@ -31,6 +31,7 @@ func main() {
 		os.Exit(2)
 	}
 	quit := make(chan bool)
+	log.Printf("Initializing proxy")
 	go proxyContainer(container, quit)
 
 	events := dockerClient.GetEvents()
@@ -41,22 +42,22 @@ func main() {
 }
 
 func handleEvents(container *docker.Container, eventChan chan *docker.Event, quit chan bool) error {
-	log.Printf("Handling Events for: %v", container.Id)
+	log.Printf("Handling Events for: %v: %v", container.Id, container.Name)
 	for event := range eventChan {
-		if container.Id == event.ContainerID {
+		if container.Id == event.ContainerId {
 			log.Printf("Received event: %v", event)
 			switch event.Status {
 			case "die", "stop", "kill":
+				log.Printf("Handling event for stop/die/kill")
 				quit <- true
-				log.Printf("Handling event %v", event)
 			case "start", "restart":
-				log.Printf("Handling event %v", event)
-				quit <- true
-				container, err := dockerClient.FetchContainer(event.ContainerID)
+				log.Printf("Handling event start/restart")
+				c, err := dockerClient.FetchContainer(event.ContainerId)
 				if err != nil {
 					return err
 				}
-				go proxyContainer(container, quit)
+				quit <- true
+				go proxyContainer(c, quit)
 			default:
 				log.Printf("Not handling event: %v", event)
 			}
@@ -72,9 +73,7 @@ func proxyContainer(container *docker.Container, quit chan bool) {
 	if len(ports) != 0 {
 		for key, _ := range ports {
 			port, proto := utils.SplitPort(key)
-			out := fmt.Sprintf("Proxying %s:%s/%s", ip, port, proto)
 			go proxy(ip, port, proto, quit)
-			log.Printf(out)
 		}
 	}
 }
@@ -82,5 +81,7 @@ func proxyContainer(container *docker.Container, quit chan bool) {
 func proxy(ip, port, proto string, quit chan bool) {
 	local := fmt.Sprintf("%v://0.0.0.0:%v", proto, port)
 	remote := fmt.Sprintf("%v://%v:%v", proto, ip, port)
+	out := fmt.Sprintf("Proxying %s:%s/%s", ip, port, proto)
+	log.Printf(out)
 	gocat.NewProxy(local, remote, quit)
 }

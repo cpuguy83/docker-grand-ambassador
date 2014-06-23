@@ -3,6 +3,7 @@ package gocat
 import (
 	"fmt"
 	"github.com/cpuguy83/docker-grand-ambassador/utils"
+	"log"
 	"net"
 )
 
@@ -30,6 +31,7 @@ func NewProxy(fromUrl, toUrl string, quit chan bool) error {
 	for {
 		select {
 		case <-quit:
+			log.Printf("Stop proxying from: %v, to: %v", fromUrl, toUrl)
 			return nil
 		default:
 			conn, err := server.Accept()
@@ -37,9 +39,9 @@ func NewProxy(fromUrl, toUrl string, quit chan bool) error {
 				return err
 			}
 			go handleConn(waiting, complete, to)
-			go func() {
+			go func(conn net.Conn) {
 				waiting <- conn
-			}()
+			}(conn)
 		}
 	}
 	return nil
