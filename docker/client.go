@@ -5,9 +5,13 @@ import (
 	"fmt"
 	"github.com/cpuguy83/docker-grand-ambassador/utils"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 type (
@@ -18,7 +22,7 @@ type (
 	}
 
 	Event struct {
-		ContainerID string `json:"id"`
+		ContainerId string `json:"id"`
 		Status      string `json:"status"`
 	}
 
@@ -153,29 +157,57 @@ func (docker *dockerClient) newRequest(method, uri string) (io.ReadCloser, error
 	return nil, fmt.Errorf("invalid HTTP request %d %s", resp.StatusCode, resp.Status)
 }
 
-func (docker *dockerClient) GetEvents() chan *Event {
-	eventChan := make(chan *Event, 100)
-	go docker.getEvents(eventChan)
-	return eventChan
-}
+func (d *dockerClient) GetEvents() chan *Event {
+	eventChan := make(chan *Event, 100) // 100 event buffer
+	go func() {
+		defer close(eventChan)
 
-func (docker *dockerClient) getEvents(eventChan chan *Event) {
-	defer close(eventChan)
-
-	resp, err := docker.newRequest("GET", "/events")
-	if err != nil {
-		return
-	}
-
-	dec := json.NewDecoder(resp)
-	for {
-		var event *Event
-		if err := dec.Decode(&event); err != nil {
-			if err == io.EOF {
-				break
-			}
-			continue
+		c, err := d.newConn()
+		if err != nil {
+			log.Printf("cannot connect to docker: %s", err)
+			return
 		}
-		eventChan <- event
-	}
+		defer c.Close()
+
+		req, err := http.NewRequest("GET", "/events", nil)
+		if err != nil {
+			log.Printf("bad request for events: %s", err)
+			return
+		}
+
+		resp, err := c.Do(req)
+		if err != nil {
+			log.Printf("cannot connect to events endpoint: %s", err)
+			return
+		}
+		defer resp.Body.Close()
+
+		// handle signals to stop the socket
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
+		go func() {
+			for sig := range sigChan {
+				log.Printf("received signal '%v', exiting", sig)
+
+				c.Close()
+				close(eventChan)
+				os.Exit(0)
+			}
+		}()
+
+		dec := json.NewDecoder(resp.Body)
+		for {
+			var event *Event
+			if err := dec.Decode(&event); err != nil {
+				if err == io.EOF {
+					break
+				}
+				log.Printf("cannot decode json: %s", err)
+				continue
+			}
+			eventChan <- event
+		}
+		log.Printf("closing event channel")
+	}()
+	return eventChan
 }
