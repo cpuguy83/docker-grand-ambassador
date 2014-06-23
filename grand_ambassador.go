@@ -21,7 +21,14 @@ func main() {
 		containerName = flag.String("name", "", "Name/ID of container to ambassadorize")
 		err           error
 	)
+
 	flag.Parse()
+
+	if *containerName == "" {
+		fmt.Println("Missing required arguments")
+		os.Exit(1)
+	}
+
 	dockerClient, err := docker.NewClient(*socket)
 	if err != nil {
 		log.Printf("Could not connect to Docker: %s", err)
