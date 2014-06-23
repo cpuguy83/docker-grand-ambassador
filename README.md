@@ -9,4 +9,5 @@ If the requested container is stopped, restarted, whatever, this will pick up th
 
 ### Usage
 
-docker run -v /var/run/docker.sock:/docker.sock cpuguy83/docker-grand-ambassador -name <container> -sock /docker.sock
+docker run -v /var/run/docker.sock:/docker.sock cpuguy83/docker-grand-ambassador -name container_name -sock /docker.sock
+
