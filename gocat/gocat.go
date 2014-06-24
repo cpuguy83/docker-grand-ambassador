@@ -43,12 +43,6 @@ func NewProxy(fromUrl, toUrl string) (net.Listener, error) {
 	return server, nil
 }
 
-func closeConn(in chan net.Conn) {
-	for conn := range in {
-		conn.Close()
-	}
-}
-
 func handleConn(waiting chan net.Conn, complete chan net.Conn, remote host) {
 	for conn := range waiting {
 		proxyConn(remote, conn)
