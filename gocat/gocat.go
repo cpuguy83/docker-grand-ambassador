@@ -3,9 +3,7 @@ package gocat
 import (
 	"fmt"
 	"github.com/cpuguy83/docker-grand-ambassador/utils"
-	//	"log"
 	"net"
-	//"sync"
 )
 
 type host struct {
