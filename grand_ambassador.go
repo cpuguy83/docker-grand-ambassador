@@ -37,16 +37,15 @@ func main() {
 	container, err := dockerClient.FetchContainer(*containerName)
 	if err != nil {
 		log.Printf("%v", err)
-		os.Exit(2)
+		os.Exit(1)
 	}
 
 	proxyChan := makeProxyChan(container)
 
 	log.Printf("Initializing proxy")
-	err = proxyContainer(container, proxyChan)
-	if err != nil {
+	if err = proxyContainer(container, proxyChan); err != nil {
 		log.Printf("%v", err)
-		os.Exit(3)
+		os.Exit(1)
 	}
 
 	events := dockerClient.GetEvents()
@@ -57,6 +56,7 @@ func main() {
 }
 
 func handleEvents(container *docker.Container, eventChan chan *docker.Event, dockerClient docker.Docker, proxyChan chan net.Listener) error {
+	var err error
 	log.Printf("Handling Events for: %v: %v", container.Id, container.Name)
 	for event := range eventChan {
 		if container.Id == event.ContainerId {
@@ -71,7 +71,8 @@ func handleEvents(container *docker.Container, eventChan chan *docker.Event, doc
 				log.Printf("Handling event start/restart")
 				c, err := dockerClient.FetchContainer(event.ContainerId)
 				if err != nil {
-					return err
+					log.Printf("%v", err)
+					os.Exit(2)
 				}
 				log.Printf("Closing old servers")
 				for srv := range proxyChan {
@@ -79,7 +80,10 @@ func handleEvents(container *docker.Container, eventChan chan *docker.Event, doc
 				}
 				log.Printf("Servers closed")
 				proxyChan = makeProxyChan(container)
-				go proxyContainer(c, proxyChan)
+				if err = proxyContainer(c, proxyChan); err != nil {
+					log.Printf("%v", err)
+					os.Exit(2)
+				}
 			default:
 				log.Printf("Not handling event: %v", event)
 			}
