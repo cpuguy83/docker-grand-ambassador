@@ -1,4 +1,4 @@
-package gocat
+package proxy
 
 import (
 	"fmt"
