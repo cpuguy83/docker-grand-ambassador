@@ -1,5 +1,5 @@
+[![Docker Build Status](http://72.14.176.28:49153/cpuguy83/docker-grand-ambassador)](https://registry.hub.docker.com/u/cpuguy83/docker-grand-ambassador)
 ## Docker Grand Ambassador
-
 
 This is a fully dynamic docker link ambassador.<br />
 For information on link ambassadors see:
