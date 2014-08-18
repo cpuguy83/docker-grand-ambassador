@@ -3,7 +3,6 @@ package docker
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cpuguy83/docker-grand-ambassador/utils"
 	"io"
 	"log"
 	"net"
@@ -12,6 +11,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/cpuguy83/docker-grand-ambassador/utils"
 )
 
 type (
@@ -19,6 +20,7 @@ type (
 		FetchAllContainers() ([]*Container, error)
 		FetchContainer(name string) (*Container, error)
 		GetEvents() chan *Event
+		Info() (*DaemonInfo, error)
 	}
 
 	Event struct {
@@ -45,12 +47,50 @@ type (
 		Name            string
 		NetworkSettings *NetworkSettings
 		State           State
+		Config          struct {
+			Image        string
+			AttachStderr bool
+			AttachStdin  bool
+			AttachStdout bool
+		}
+		HostConfig struct {
+			PortBindings map[string][]Binding
+		}
 	}
 
 	dockerClient struct {
 		path string
 	}
+
+	DaemonInfo struct {
+		Containers         int
+		Debug              int
+		Driver             string
+		DriverStatus       [][]string
+		ExecutionDriver    string
+		IPv4Forwarding     int
+		Images             int
+		IndexServerAddress string
+		InitPath           string
+		INitSha1           string
+		KernelVersion      string
+		MemoryLimit        int
+		NEventsListener    int
+		NFd                int
+		NGoroutines        int
+		Sockets            []string
+		SwapLimit          int
+	}
 )
+
+func (d *DaemonInfo) RootPath() string {
+	for _, i := range d.DriverStatus {
+		if i[0] == "Root Dir" {
+			return i[1]
+		}
+	}
+	return ""
+}
 
 func NewClient(path string) (Docker, error) {
 	return &dockerClient{path}, nil
@@ -210,4 +250,38 @@ func (d *dockerClient) GetEvents() chan *Event {
 		log.Printf("closing event channel")
 	}()
 	return eventChan
+}
+
+func (docker *dockerClient) Info() (*DaemonInfo, error) {
+	var (
+		method = "GET"
+		uri    = "/info"
+	)
+
+	req, err := http.NewRequest(method, fmt.Sprintf(uri), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	c, err := docker.newConn()
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(fmt.Sprintf("Request failed, status: %s", resp.StatusCode))
+	}
+
+	var info *DaemonInfo
+	if err = json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return nil, err
+	}
+	return info, nil
 }
