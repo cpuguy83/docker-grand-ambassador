@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -104,6 +105,158 @@ func (d *dockerClient) newConn() (*httputil.ClientConn, error) {
 		return nil, err
 	}
 	return httputil.NewClientConn(conn, nil), nil
+}
+
+func (docker *dockerClient) PullImage(name string) error {
+	var (
+		method = "POST"
+		uri    = fmt.Sprintf("/images/create?fromImage=%s", name)
+	)
+
+	req, err := http.NewRequest(method, fmt.Sprintf(uri), nil)
+	if err != nil {
+		return err
+	}
+
+	c, err := docker.newConn()
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf(fmt.Sprintf("Request failed, status: %s", resp.StatusCode))
+	}
+
+	return nil
+}
+
+func (docker *dockerClient) RemoveContainer(name string, force bool, volumes bool) error {
+	var (
+		method = "DELETE"
+		uri    = fmt.Sprintf("/containers/%s?force=%s&volumes=%s", name, force, volumes)
+	)
+
+	req, err := http.NewRequest(method, fmt.Sprintf(uri), nil)
+	if err != nil {
+		return err
+	}
+
+	c, err := docker.newConn()
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf(fmt.Sprintf("Request failed, status: %s", resp.StatusCode))
+	}
+
+	return nil
+}
+
+func (docker *dockerClient) CreateContainer(container map[string]interface{}) (string, error) {
+	var (
+		method = "POST"
+		name   string
+		uri    = fmt.Sprintf("/containers/create")
+	)
+
+	cJson, err := json.Marshal(container)
+	if err != nil {
+		return name, err
+	}
+
+	req, err := http.NewRequest(method, fmt.Sprintf(uri), bytes.NewBuffer(cJson))
+	if err != nil {
+		return name, err
+	}
+
+	c, err := docker.newConn()
+	if err != nil {
+		return name, err
+	}
+	defer c.Close()
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return name, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return name, fmt.Errorf(fmt.Sprintf("Request failed, status: %s", resp.StatusCode))
+	}
+
+	type createResp struct {
+		Id string
+	}
+	var respData createResp
+	err = json.NewDecoder(resp.Body).Decode(&respData)
+	if err != nil {
+		return name, err
+	}
+	name = respData.Id
+
+	return name, nil
+}
+
+func (docker *dockerClient) StartContainer(name, hostConfig interface{}) error {
+	var (
+		method = "POST"
+		uri    = fmt.Sprintf("/containers/%s/start", name)
+	)
+
+	bodyJson, err := json.Marshal(hostConfig)
+	if err != nil {
+		return err
+	}
+	bodyData := bytes.NewBuffer(bodyJson)
+
+	req, err := http.NewRequest(method, fmt.Sprintf(uri), bodyData)
+	if err != nil {
+		return err
+	}
+
+	c, err := docker.newConn()
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf(fmt.Sprintf("Request failed, status: %s", resp.StatusCode))
+	}
+
+	return nil
+}
+
+func (docker *dockerClient) RunContainer(config map[string]interface{}) error {
+
+	name, err := docker.CreateContainer(config)
+	if err != nil {
+		return err
+	}
+
+	return docker.StartContainer(name, config["HostConfig"])
 }
 
 func (docker *dockerClient) FetchContainer(name string) (*Container, error) {
