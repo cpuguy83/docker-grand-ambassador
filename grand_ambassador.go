@@ -3,12 +3,13 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/cpuguy83/docker-grand-ambassador/docker"
-	"github.com/cpuguy83/docker-grand-ambassador/proxy"
-	"github.com/cpuguy83/docker-grand-ambassador/utils"
 	"log"
 	"net"
 	"os"
+
+	"github.com/cpuguy83/docker-grand-ambassador/docker"
+	"github.com/cpuguy83/docker-grand-ambassador/proxy"
+	"github.com/cpuguy83/docker-grand-ambassador/utils"
 )
 
 var (
@@ -55,8 +56,7 @@ func main() {
 	<-wait
 }
 
-func handleEvents(container *docker.Container, eventChan chan *docker.Event, dockerClient docker.Docker, proxyChan chan net.Listener) error {
-	var err error
+func handleEvents(container *docker.Container, eventChan chan *docker.Event, dockerClient docker.Docker, proxyChan chan net.Listener) {
 	log.Printf("Handling Events for: %v: %v", container.Id, container.Name)
 	for event := range eventChan {
 		if container.Id == event.ContainerId {
@@ -90,7 +90,6 @@ func handleEvents(container *docker.Container, eventChan chan *docker.Event, doc
 		}
 	}
 	log.Printf("Stopped handling events")
-	return nil
 }
 
 func proxyContainer(container *docker.Container, proxyChan chan net.Listener) error {
@@ -103,7 +102,7 @@ func proxyContainer(container *docker.Container, proxyChan chan net.Listener) er
 			remote := fmt.Sprintf("%v://%v:%v", proto, ip, port)
 			out := fmt.Sprintf("Proxying %s:%s/%s", ip, port, proto)
 			log.Printf(out)
-			srv, err := gocat.NewProxy(local, remote)
+			srv, err := proxy.NewProxy(local, remote)
 			if err != nil {
 				return err
 			}
