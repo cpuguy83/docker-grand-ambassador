@@ -22,6 +22,10 @@ type (
 		FetchContainer(name string) (*Container, error)
 		GetEvents() chan *Event
 		Info() (*DaemonInfo, error)
+		PullImage(name string) error
+		CreateContainer(container map[string]interface{}) (string, error)
+		StartContainer(string, interface{}) error
+		RunContainer(map[string]interface{}) error
 	}
 
 	Event struct {
@@ -213,7 +217,7 @@ func (docker *dockerClient) CreateContainer(container map[string]interface{}) (s
 	return name, nil
 }
 
-func (docker *dockerClient) StartContainer(name, hostConfig interface{}) error {
+func (docker *dockerClient) StartContainer(name string, hostConfig interface{}) error {
 	var (
 		method = "POST"
 		uri    = fmt.Sprintf("/containers/%s/start", name)
