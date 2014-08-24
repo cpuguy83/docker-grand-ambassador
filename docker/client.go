@@ -26,6 +26,7 @@ type (
 		CreateContainer(container map[string]interface{}) (string, error)
 		StartContainer(string, interface{}) error
 		RunContainer(map[string]interface{}) error
+		RemoveContainer(name string, force, volumes bool) error
 	}
 
 	Event struct {
@@ -141,7 +142,7 @@ func (docker *dockerClient) PullImage(name string) error {
 	return nil
 }
 
-func (docker *dockerClient) RemoveContainer(name string, force bool, volumes bool) error {
+func (docker *dockerClient) RemoveContainer(name string, force, volumes bool) error {
 	var (
 		method = "DELETE"
 		uri    = fmt.Sprintf("/containers/%s?force=%s&volumes=%s", name, force, volumes)
