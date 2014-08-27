@@ -7,9 +7,9 @@ import (
 	"net"
 	"os"
 
-	"github.com/cpuguy83/docker-grand-ambassador/docker"
 	"github.com/cpuguy83/docker-grand-ambassador/proxy"
 	"github.com/cpuguy83/docker-grand-ambassador/utils"
+	"github.com/cpuguy83/dockerclient"
 )
 
 var (
