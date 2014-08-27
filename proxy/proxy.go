@@ -1,9 +1,10 @@
 package proxy
 
 import (
-	"fmt"
-	"github.com/cpuguy83/docker-grand-ambassador/utils"
+	"log"
 	"net"
+
+	"github.com/cpuguy83/docker-grand-ambassador/utils"
 )
 
 type host struct {
@@ -55,7 +56,7 @@ func proxyConn(toHost host, from net.Conn) {
 
 	to, err := net.Dial(toHost.Proto, toHost.Address)
 	if err != nil {
-		fmt.Errorf("%v", err)
+		log.Println(err)
 		return
 	}
 	defer to.Close()

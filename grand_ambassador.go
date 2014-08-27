@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 
 	"github.com/cpuguy83/docker-grand-ambassador/proxy"
 	"github.com/cpuguy83/docker-grand-ambassador/utils"
@@ -26,27 +25,23 @@ func main() {
 	flag.Parse()
 
 	if *containerName == "" {
-		fmt.Println("Missing required arguments")
-		os.Exit(1)
+		log.Fatalf("Missing required arguments")
 	}
 
 	dockerClient, err := docker.NewClient(*socket)
 	if err != nil {
-		log.Printf("Could not connect to Docker: %s", err)
-		os.Exit(1)
+		log.Fatalf("Could not connect to Docker: %s", err)
 	}
 	container, err := dockerClient.FetchContainer(*containerName)
 	if err != nil {
-		log.Printf("%v", err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
 	proxyChan := makeProxyChan(container)
 
 	log.Printf("Initializing proxy")
 	if err = proxyContainer(container, proxyChan); err != nil {
-		log.Printf("%v", err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
 	events := dockerClient.GetEvents()
@@ -71,8 +66,7 @@ func handleEvents(container *docker.Container, eventChan chan *docker.Event, doc
 				log.Printf("Handling event start/restart")
 				c, err := dockerClient.FetchContainer(event.ContainerId)
 				if err != nil {
-					log.Printf("%v", err)
-					os.Exit(2)
+					log.Fatal(err)
 				}
 				log.Printf("Closing old servers")
 				for srv := range proxyChan {
@@ -81,8 +75,7 @@ func handleEvents(container *docker.Container, eventChan chan *docker.Event, doc
 				log.Printf("Servers closed")
 				proxyChan = makeProxyChan(container)
 				if err = proxyContainer(c, proxyChan); err != nil {
-					log.Printf("%v", err)
-					os.Exit(2)
+					log.Fatal(err)
 				}
 			default:
 				log.Printf("Not handling event: %v", event)
