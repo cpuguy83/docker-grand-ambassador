@@ -25,7 +25,7 @@ type (
 		PullImage(name string) error
 		CreateContainer(container map[string]interface{}) (string, error)
 		StartContainer(string, interface{}) error
-		RunContainer(map[string]interface{}) error
+		RunContainer(map[string]interface{}) (string, error)
 		RemoveContainer(name string, force, volumes bool) error
 	}
 
@@ -118,26 +118,11 @@ func (docker *dockerClient) PullImage(name string) error {
 		uri    = fmt.Sprintf("/images/create?fromImage=%s", name)
 	)
 
-	req, err := http.NewRequest(method, fmt.Sprintf(uri), nil)
+	respBody, err := docker.newRequest(method, uri, nil)
 	if err != nil {
-		return err
+		return nil
 	}
-
-	c, err := docker.newConn()
-	if err != nil {
-		return err
-	}
-	defer c.Close()
-
-	resp, err := c.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(fmt.Sprintf("Request failed, status: %s", resp.StatusCode))
-	}
+	defer respBody.Close()
 
 	return nil
 }
@@ -148,26 +133,11 @@ func (docker *dockerClient) RemoveContainer(name string, force, volumes bool) er
 		uri    = fmt.Sprintf("/containers/%s?force=%s&volumes=%s", name, force, volumes)
 	)
 
-	req, err := http.NewRequest(method, fmt.Sprintf(uri), nil)
+	respBody, err := docker.newRequest(method, uri, nil)
 	if err != nil {
 		return err
 	}
-
-	c, err := docker.newConn()
-	if err != nil {
-		return err
-	}
-	defer c.Close()
-
-	resp, err := c.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(fmt.Sprintf("Request failed, status: %s", resp.StatusCode))
-	}
+	defer respBody.Close()
 
 	return nil
 }
@@ -176,40 +146,21 @@ func (docker *dockerClient) CreateContainer(container map[string]interface{}) (s
 	var (
 		method = "POST"
 		name   string
-		uri    = fmt.Sprintf("/containers/create")
+		uri    = fmt.Sprintf("/containers/create?name=%s", container["Name"])
 	)
 
-	cJson, err := json.Marshal(container)
+	delete(container, "Name")
+	respBody, err := docker.newRequest(method, uri, container)
 	if err != nil {
-		return name, err
+		return "", err
 	}
-
-	req, err := http.NewRequest(method, fmt.Sprintf(uri), bytes.NewBuffer(cJson))
-	if err != nil {
-		return name, err
-	}
-
-	c, err := docker.newConn()
-	if err != nil {
-		return name, err
-	}
-	defer c.Close()
-
-	resp, err := c.Do(req)
-	if err != nil {
-		return name, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return name, fmt.Errorf(fmt.Sprintf("Request failed, status: %s", resp.StatusCode))
-	}
+	defer respBody.Close()
 
 	type createResp struct {
 		Id string
 	}
 	var respData createResp
-	err = json.NewDecoder(resp.Body).Decode(&respData)
+	err = json.NewDecoder(respBody).Decode(&respData)
 	if err != nil {
 		return name, err
 	}
@@ -224,44 +175,23 @@ func (docker *dockerClient) StartContainer(name string, hostConfig interface{}) 
 		uri    = fmt.Sprintf("/containers/%s/start", name)
 	)
 
-	bodyJson, err := json.Marshal(hostConfig)
+	respBody, err := docker.newRequest(method, uri, hostConfig)
 	if err != nil {
 		return err
 	}
-	bodyData := bytes.NewBuffer(bodyJson)
-
-	req, err := http.NewRequest(method, fmt.Sprintf(uri), bodyData)
-	if err != nil {
-		return err
-	}
-
-	c, err := docker.newConn()
-	if err != nil {
-		return err
-	}
-	defer c.Close()
-
-	resp, err := c.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf(fmt.Sprintf("Request failed, status: %s", resp.StatusCode))
-	}
+	defer respBody.Close()
 
 	return nil
 }
 
-func (docker *dockerClient) RunContainer(config map[string]interface{}) error {
+func (docker *dockerClient) RunContainer(config map[string]interface{}) (string, error) {
 
 	name, err := docker.CreateContainer(config)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return docker.StartContainer(name, config["HostConfig"])
+	return name, docker.StartContainer(name, config["HostConfig"])
 }
 
 func (docker *dockerClient) FetchContainer(name string) (*Container, error) {
@@ -269,29 +199,14 @@ func (docker *dockerClient) FetchContainer(name string) (*Container, error) {
 		method = "GET"
 		uri    = fmt.Sprintf("/containers/%s/json", name)
 	)
-	req, err := http.NewRequest(method, fmt.Sprintf(uri), nil)
+
+	respBody, err := docker.newRequest(method, uri, nil)
 	if err != nil {
 		return nil, err
 	}
-
-	c, err := docker.newConn()
-	if err != nil {
-		return nil, err
-	}
-	defer c.Close()
-
-	resp, err := c.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(fmt.Sprintf("Request failed, status: %s", resp.StatusCode))
-	}
-
+	defer respBody.Close()
 	var container *Container
-	err = json.NewDecoder(resp.Body).Decode(&container)
+	err = json.NewDecoder(respBody).Decode(&container)
 	if err != nil {
 		return nil, err
 	}
@@ -303,39 +218,32 @@ func (docker *dockerClient) FetchAllContainers() ([]*Container, error) {
 		method = "GET"
 		uri    = "/containers/json"
 	)
-	req, err := http.NewRequest(method, fmt.Sprintf(uri), nil)
+
+	respBody, err := docker.newRequest(method, uri, nil)
 	if err != nil {
 		return nil, err
 	}
-
-	c, err := docker.newConn()
-	if err != nil {
-		return nil, err
-	}
-	defer c.Close()
-
-	resp, err := c.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(fmt.Sprintf("Request failed, status: %s", resp.StatusCode))
-	}
+	defer respBody.Close()
 
 	var containers []*Container
-	if err = json.NewDecoder(resp.Body).Decode(&containers); err != nil {
+	if err = json.NewDecoder(respBody).Decode(&containers); err != nil {
 		return nil, err
 	}
 	return containers, nil
 }
 
-func (docker *dockerClient) newRequest(method, uri string) (io.ReadCloser, error) {
-	req, err := http.NewRequest(method, fmt.Sprintf(uri), nil)
+func (docker *dockerClient) newRequest(method, uri string, body interface{}) (io.ReadCloser, error) {
+	bodyJson, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
+
+	req, err := http.NewRequest(method, uri, bytes.NewBuffer(bodyJson))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
 
 	c, err := docker.newConn()
 	if err != nil {
@@ -347,12 +255,45 @@ func (docker *dockerClient) newRequest(method, uri string) (io.ReadCloser, error
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusOK {
+	if docker.isOkStatus(resp.StatusCode) {
 		return resp.Body, nil
 	}
 	return nil, fmt.Errorf("invalid HTTP request %d %s", resp.StatusCode, resp.Status)
+}
+
+func (d *dockerClient) isOkStatus(code int) bool {
+	codes := map[int]bool{
+		200: true,
+		201: true,
+		204: true,
+		400: false,
+		404: false,
+		500: false,
+		409: false,
+		406: false,
+	}
+
+	return codes[code]
+}
+
+func (docker *dockerClient) Info() (*DaemonInfo, error) {
+	var (
+		method = "GET"
+		uri    = "/info"
+	)
+
+	respBody, err := docker.newRequest(method, uri, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer respBody.Close()
+
+	var info *DaemonInfo
+	if err = json.NewDecoder(respBody).Decode(&info); err != nil {
+		return nil, err
+	}
+	return info, nil
 }
 
 func (d *dockerClient) GetEvents() chan *Event {
@@ -408,38 +349,4 @@ func (d *dockerClient) GetEvents() chan *Event {
 		log.Printf("closing event channel")
 	}()
 	return eventChan
-}
-
-func (docker *dockerClient) Info() (*DaemonInfo, error) {
-	var (
-		method = "GET"
-		uri    = "/info"
-	)
-
-	req, err := http.NewRequest(method, fmt.Sprintf(uri), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	c, err := docker.newConn()
-	if err != nil {
-		return nil, err
-	}
-	defer c.Close()
-
-	resp, err := c.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(fmt.Sprintf("Request failed, status: %s", resp.StatusCode))
-	}
-
-	var info *DaemonInfo
-	if err = json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		return nil, err
-	}
-	return info, nil
 }
