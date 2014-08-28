@@ -52,14 +52,13 @@ func handleConn(waiting chan net.Conn, complete chan net.Conn, remote host) {
 }
 
 func proxyConn(toHost host, from net.Conn) {
-	defer from.Close()
-
 	to, err := net.Dial(toHost.Proto, toHost.Address)
 	if err != nil {
+		to.Close()
+		from.Close()
 		log.Println(err)
 		return
 	}
-	defer to.Close()
 
 	complete := make(chan bool)
 
@@ -67,6 +66,8 @@ func proxyConn(toHost host, from net.Conn) {
 	go copyContent(to, from, complete)
 	<-complete
 	<-complete
+	to.Close()
+	from.Close()
 }
 
 func copyContent(from, to net.Conn, complete chan bool) {
