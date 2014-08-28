@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 
 	"github.com/cpuguy83/docker-grand-ambassador/proxy"
 	"github.com/cpuguy83/docker-grand-ambassador/utils"
@@ -19,6 +20,7 @@ func main() {
 	var (
 		socket        = flag.String("sock", "/var/run/docker.sock", "Path to docker socket")
 		containerName = flag.String("name", "", "Name/ID of container to ambassadorize")
+		containerWait = flag.Bool("wait", true, "Wait for container to be created if it doesn't exist on start")
 		err           error
 	)
 
@@ -32,9 +34,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("Could not connect to Docker: %s", err)
 	}
+	events := dockerClient.GetEvents()
 	container, err := dockerClient.FetchContainer(*containerName)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Container does not exist", *containerName)
+		if *containerWait {
+			container = waitForContainer(*containerName, events, dockerClient)
+		}
+
+		log.Fatal("Not waiting for container, exiting")
 	}
 
 	proxyChan := makeProxyChan(container)
@@ -44,11 +52,26 @@ func main() {
 		log.Fatal(err)
 	}
 
-	events := dockerClient.GetEvents()
 	go handleEvents(container, events, dockerClient, proxyChan)
 
 	wait := make(chan bool)
 	<-wait
+}
+
+func waitForContainer(name string, eventChan chan *docker.Event, client docker.Docker) *docker.Container {
+	log.Println("Waiting for container to be created:", name)
+	for event := range eventChan {
+		c, err := client.FetchContainer(event.ContainerId)
+		if err != nil {
+			continue
+		}
+
+		if strings.TrimPrefix(c.Name, "/") == name {
+			return c
+		}
+		log.Println("container does not match:", c.Name, name)
+	}
+	return nil
 }
 
 func handleEvents(container *docker.Container, eventChan chan *docker.Event, dockerClient docker.Docker, proxyChan chan net.Listener) {
