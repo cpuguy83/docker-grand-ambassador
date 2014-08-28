@@ -54,7 +54,19 @@ func main() {
 func handleEvents(container *docker.Container, eventChan chan *docker.Event, dockerClient docker.Docker, proxyChan chan net.Listener) {
 	log.Printf("Handling Events for: %v: %v", container.Id, container.Name)
 	for event := range eventChan {
-		if container.Id == event.ContainerId {
+		c, err := dockerClient.FetchContainer(event.ContainerId)
+		if err != nil {
+			if event.ContainerId != container.Id {
+				continue
+			}
+
+			c = container
+		}
+		if container.Name == c.Name {
+			// Set the container to match
+			// This is so we can recover properly if a our container was removed
+			container = c
+
 			log.Printf("Received event: %v", event)
 			switch event.Status {
 			case "die", "stop", "kill":
@@ -64,10 +76,6 @@ func handleEvents(container *docker.Container, eventChan chan *docker.Event, doc
 				}
 			case "start", "restart":
 				log.Printf("Handling event start/restart")
-				c, err := dockerClient.FetchContainer(event.ContainerId)
-				if err != nil {
-					log.Fatal(err)
-				}
 				log.Printf("Closing old servers")
 				for srv := range proxyChan {
 					srv.Close()
