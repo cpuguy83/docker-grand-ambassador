@@ -54,7 +54,7 @@ func main() {
 
 	go handleEvents(container, events, dockerClient, proxyChan)
 
-	wait := make(chan bool)
+	wait := make(chan struct{})
 	<-wait
 }
 
