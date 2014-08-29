@@ -38,11 +38,11 @@ func main() {
 	container, err := dockerClient.FetchContainer(*containerName)
 	if err != nil {
 		log.Println("Container does not exist", *containerName)
-		if *containerWait {
-			container = waitForContainer(*containerName, events, dockerClient)
+		if !*containerWait {
+			log.Fatal("Not waiting for container, exiting")
 		}
 
-		log.Fatal("Not waiting for container, exiting")
+		container = waitForContainer(*containerName, events, dockerClient)
 	}
 
 	proxyChan := makeProxyChan(container)
