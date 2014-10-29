@@ -46,6 +46,4 @@ docker run --rm --link redis_ambassador:db crosbymichael/redis-cli -h db ping
 
 ### Caveats
 
-Proxy is new and not heavily tested.
-
-Currently UDP is not working properly in the proxy so this needs to be worked out.
+It's a proxy!
