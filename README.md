@@ -1,6 +1,7 @@
 ## Docker Grand Ambassador [![Docker Build Status](http://hubstatus.container42.com/cpuguy83/docker-grand-ambassador)](https://registry.hub.docker.com/u/cpuguy83/docker-grand-ambassador)
 
-This is a fully dynamic docker link ambassador.<br />
+This is a fully dynamic docker link ambassador.  
+
 For information on link ambassadors see:
 http://docs.docker.com/articles/ambassador_pattern_linking/
 
@@ -22,7 +23,7 @@ The solution will very likey be added in Docker at some point, but until that
 time, we need something a bit more dynamic.
 
 Grand Ambassador reads all the exposed ports of the passed in container and
-creates a proxy for each of those ports on all interfaces in the ambassador.<br />
+creates a proxy for each of those ports on all interfaces in the ambassador.  
 Once the ambassador is started it will begin to monitor the Docker event stream
 for potential changes to these settings and adjust the proxy settings
 accordingly, without restarting the ambassador container.
@@ -33,6 +34,19 @@ docker run -d -v /var/run/docker.sock:/docker.sock \
   cpuguy83/docker-grand-ambassador \
   -name container_name \
   -sock /docker.sock
+```
+
+```bash
+Usage of /usr/bin/grand-ambassador:
+  -log-level="info": Set debug logging
+  -name=[]: Name/ID of container to ambassadorize
+  -sock="/var/run/docker.sock": Path to docker socket
+  -tls=false: Enable TLS for connecting to Docker socket
+  -tlscacert="/root/.docker/ca.pem": Path to TLS ca cert
+  -tlscert="/root/.docker/cert.pem": Path to TLS cert
+  -tlskey="/root/.docker/key.pem": Path to TLS key
+  -tlsverify=false: Enable TLS verification of the Docker host
+  -wait=true: Wait for container to be created if it doesn't exist on start
 ```
 
 ### Example
